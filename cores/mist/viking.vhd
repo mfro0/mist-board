@@ -106,7 +106,7 @@ begin
         signal pix4             : std_ulogic_vector(3 downto 0);
     begin
         -- --------------- horizontal timing -------------
-        hs <= '0' when to_integer(h_cnt) >= HBP1 + H + HBP2 - 1 and 
+        hs <= '0' when to_integer(h_cnt) >= HBP1 + H + HFP and 
                        to_integer(h_cnt) < HBP1 + H + HFP + HSS else '1';
         p_hwrap : process
         begin

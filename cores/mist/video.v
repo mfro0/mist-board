@@ -312,7 +312,7 @@ viking viking (
 	       
        // memory interface
        .addr      ( viking_vaddr    ), // video word address
-       .read      ( viking_read     ), // video read cycle
+       .rd      ( viking_read     ), // video read cycle
        .data      ( data            ), // video data read
 
        // video output
