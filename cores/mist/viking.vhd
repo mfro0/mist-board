@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 entity viking is
     port
     (
-        pclk        : in std_ulogic;
+        pclk        : in std_ulogic;                        -- pixel clock
         
         -- memory interface
         himem       : in std_ulogic;                        -- use memory behind ROM
@@ -32,31 +32,33 @@ architecture rtl of viking is
     -- to main bus
     --
     -- Horizontal timing
-    -- HBP1 |                    H              | HFP | HS | HBP2
+    -- HBP1 |                    H              | HFP | HSS| HBP2
     -- -----|XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|-----|____|-----
     -- HBP1 is used for prefetch
 	
     -- 1280x
 
-    constant H      : integer := 1280;
-    constant HFP    : integer := 88;
-    constant HSS     : integer := 136;
-    constant HBP1   : integer := 32;
-    constant HBP2   : integer := 192;
+    type int10 is range 0 to 2 ** 11 - 1;
+
+    constant H      : int10 := 1280;
+    constant HFP    : int10 := 88;
+    constant HSS    : int10 := 136;
+    constant HBP1   : int10 := 32;
+    constant HBP2   : int10 := 192;
 
     -- Vertical timing
-    --                     V              | VFP | VS | VBP
+    --                     V              | VFP | VSS| VBP
     -- XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX|-----|____|-----
 
     -- x1024
-    constant V      : integer := 1024;
-    constant VFP    : integer := 9;
-    constant VSS     : integer := 4;
-    constant VBP    : integer := 9;
+    constant V      : int10 := 1024;
+    constant VFP    : int10 := 9;
+    constant VSS    : int10 := 4;
+    constant VBP    : int10 := 9;
 
 
-    signal v_cnt            : unsigned(10 downto 0);
-    signal h_cnt            : unsigned(10 downto 0);
+    signal v_cnt            : int10;
+    signal h_cnt            : int10;
     
     signal bus_cycle_l      : std_ulogic_vector(5 downto 0);
     signal me               : std_ulogic;
@@ -95,7 +97,7 @@ begin
         p_bus_cycle : process
         begin
             wait until falling_edge(pclk);
-            bus_cycle_l <= bus_cycle & std_ulogic_vector(unsigned(t));
+            bus_cycle_l <= bus_cycle & std_ulogic_vector(t);
         end process p_bus_cycle;
     end block internal_state_counter;
     
@@ -106,8 +108,8 @@ begin
         signal pix4             : std_ulogic_vector(3 downto 0);
     begin
         -- --------------- horizontal timing -------------
-        hs <= '0' when to_integer(h_cnt) >= HBP1 + H + HFP and 
-                       to_integer(h_cnt) < HBP1 + H + HFP + HSS else '1';
+        hs <= '0' when h_cnt >= HBP1 + H + HFP and 
+                       h_cnt < HBP1 + H + HFP + HSS else '1';
         p_hwrap : process
         begin
             wait until rising_edge(pclk);
@@ -115,7 +117,7 @@ begin
                 -- make sure a line starts with the "video" bus cycle (0)
                 -- CPU has cycles 1 and 3
                 if bus_cycle_l = 2d"1" & 4d"15" then
-                    h_cnt <= (others => '0');
+                    h_cnt <= 0;
                 end if;
             else
                 h_cnt <= h_cnt + 1;
@@ -123,14 +125,14 @@ begin
         end process p_hwrap;
         
         -- --------------- vertical timing -------------
-        vs <= '0' when to_integer(v_cnt) >= V + VFP and 
-                       to_integer(v_cnt) < V + VFP + VSS else '1';
+        vs <= '0' when v_cnt >= V + VFP and 
+                       v_cnt < V + VFP + VSS else '1';
         p_vwrap : process
         begin
             wait until rising_edge(pclk);
             if h_cnt = HBP1 + H + HFP + HSS + HBP2 - 1 then
                 if v_cnt = V + VFP + VSS + VBP - 1 then
-                    v_cnt <= (others => '0');
+                    v_cnt <= 0;
                 else
                     v_cnt <= v_cnt + 1;
                 end if;
@@ -142,7 +144,7 @@ begin
         begin
             wait until rising_edge(pclk);
             -- last line on screen
-            if to_integer(v_cnt) = V + VFP + VSS + VBP - 2 then
+            if v_cnt = V + VFP + VSS + VBP - 2 then
                 if himem = '1' then
                     addr <= BASE_HI;
                 else
