@@ -25,8 +25,8 @@ entity viking is
 end entity viking;
 
 architecture rtl of viking is
-    constant BASE       : std_ulogic_vector(22 downto 0) := 23x"60_0000";
-    constant BASE_HI    : std_ulogic_vector(22 downto 0) := 23x"74_0000";
+    constant BASE       : std_ulogic_vector(22 downto 0) := 23x"60_0000";   -- 0xc00000
+    constant BASE_HI    : std_ulogic_vector(22 downto 0) := 23x"74_0000";   -- 0xe80000
     
     -- total width must be multiple of 64, so video runs synchronous
     -- to main bus
@@ -115,10 +115,10 @@ begin
                 -- make sure a line starts with the "video" bus cycle (0)
                 -- CPU has cycles 1 and 3
                 if bus_cycle_l = 2d"1" & 4d"15" then
-                    h_cnt <= 11d"0";
-                else
-                    h_cnt <= h_cnt + 11d"1";
+                    h_cnt <= (others => '0');
                 end if;
+            else
+                h_cnt <= h_cnt + 1;
             end if;
         end process p_hwrap;
         
@@ -130,9 +130,9 @@ begin
             wait until rising_edge(pclk);
             if h_cnt = HBP1 + H + HFP + HSS + HBP2 - 1 then
                 if v_cnt = V + VFP + VSS + VBP - 1 then
-                    v_cnt <= 11d"0";
+                    v_cnt <= (others => '0');
                 else
-                    v_cnt <= v_cnt + 11d"1";
+                    v_cnt <= v_cnt + 1;
                 end if;
             end if;
         end process p_vwrap;
@@ -141,6 +141,7 @@ begin
         p_memory_timing : process
         begin
             wait until rising_edge(pclk);
+            -- last line on screen
             if to_integer(v_cnt) = V + VFP + VSS + VBP - 2 then
                 if himem = '1' then
                     addr <= BASE_HI;
