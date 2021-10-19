@@ -30,7 +30,7 @@ end entity cache;
 architecture rtl of cache is
     -- cache size configuration
     -- the cache size in bytes is 8 * (2 ^ BITS), e.g. 2 kBytes if bits == 8
-    constant BITS       : integer := 16;
+    constant BITS       : integer := 8;
     
     -- 8 bytes wide storage
     constant ENTRIES    : integer := 2 ** BITS;
@@ -45,7 +45,7 @@ architecture rtl of cache is
     -- L = cache line
     -- W = 16 bit word select 
     signal tag              : std_ulogic_vector(21 - BITS - 1 downto 0);
-    signal lin              : integer range 0 to 2 ** (21 - BITS - 1);
+    signal lin              : integer range 0 to 2 ** (BITS - 1);
     
     signal data_latch_7,
            data_latch_6,
@@ -95,10 +95,10 @@ begin
     
     p_cache : process(all)
     begin
-        if clear = '1' then
-            valid <= (others => '0');
-        elsif rising_edge(clk) then
-            if store = '1' then
+        if rising_edge(clk) then
+            if clear = '1' then
+                valid <= (others => '0');
+            elsif store = '1' then
                 data_latch_7(lin) <= din64(63 downto 56);
                 data_latch_6(lin) <= din64(55 downto 48);
                 data_latch_5(lin) <= din64(47 downto 40);
