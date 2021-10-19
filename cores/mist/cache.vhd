@@ -45,7 +45,7 @@ architecture rtl of cache is
     -- L = cache line
     -- W = 16 bit word select 
     signal tag              : std_ulogic_vector(21 - BITS - 1 downto 0);
-    signal lin              : integer range 0 to 2 ** (BITS - 1);
+    signal lin              : integer range 0 to 2 ** BITS - 1;
     
     signal data_latch_7,
            data_latch_6,
@@ -67,6 +67,8 @@ architecture rtl of cache is
 begin
     tag <= addr(22 downto 2 + BITS);
     lin <= to_integer(unsigned(addr(2 + BITS - 1 downto 2)));
+    clear <= '1' when reset or flush else '0';
+    
     
            
     -- signal indicating the currently selected cache line is valid and matches the
@@ -91,14 +93,12 @@ begin
         current_tag <= tag_latch(lin);
     end process p_dout_latch;
     
-    clear <= '1' when reset or flush else '0';
-    
     p_cache : process(all)
     begin
-        if rising_edge(clk) then
-            if clear = '1' then
-                valid <= (others => '0');
-            elsif store = '1' then
+        if clear = '1' then
+            valid <= (others => '0');
+        elsif rising_edge(clk) then
+            if store = '1' then
                 data_latch_7(lin) <= din64(63 downto 56);
                 data_latch_6(lin) <= din64(55 downto 48);
                 data_latch_5(lin) <= din64(47 downto 40);
@@ -113,36 +113,21 @@ begin
             
             -- CPU (or other bus master) writes to RAM, so update cache contents if required
             elsif update = '1' and hit = '1' then
-                -- no need to care for tag_latch or valis as they simply stay the same
+                -- no need to care for tag_latch or valid as they simply stay the same
                 case addr(1 downto 0) is
                     when "00" =>
-                        if ds(1) = '1' then
-                            data_latch_0(lin) <= din16(7 downto 0);
-                        end if;
-                        if ds(0) = '1' then
-                            data_latch_1(lin) <= din16(15 downto 8);
-                        end if;
+                        if ds(1) = '1' then data_latch_0(lin) <= din16(7 downto 0); end if;
+                        if ds(0) = '1' then data_latch_1(lin) <= din16(15 downto 8); end if;
                     when "01" =>
-                        if ds(1) = '1' then
-                            data_latch_2(lin) <= din16(7 downto 0);
-                        end if;
-                        if ds(0) = '1' then
-                            data_latch_3(lin) <= din16(15 downto 8);
+                        if ds(1) = '1' then data_latch_2(lin) <= din16(7 downto 0); end if;
+                        if ds(0) = '1' then data_latch_3(lin) <= din16(15 downto 8);
                         end if;
                     when "10" =>
-                        if ds(1) = '1' then
-                            data_latch_4(lin) <= din16(7 downto 0);
-                        end if;
-                        if ds(0) = '1' then
-                            data_latch_5(lin) <= din16(15 downto 8);
-                        end if;
+                        if ds(1) = '1' then data_latch_4(lin) <= din16(7 downto 0); end if;
+                        if ds(0) = '1' then data_latch_5(lin) <= din16(15 downto 8); end if;
                     when "11" =>
-                        if ds(1) = '1' then
-                            data_latch_6(lin) <= din16(7 downto 0);
-                        end if;
-                        if ds(0) = '1' then
-                            data_latch_7(lin) <= din16(15 downto 8);
-                        end if;
+                        if ds(1) = '1' then data_latch_6(lin) <= din16(7 downto 0); end if;
+                        if ds(0) = '1' then data_latch_7(lin) <= din16(15 downto 8); end if;
                 end case;
             end if;
         end if;
