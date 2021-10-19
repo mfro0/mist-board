@@ -50,7 +50,8 @@ entity sdram is
         addr            : in std_ulogic_vector(23 downto 0);        -- 24 bit address
         ds              : in std_ulogic_vector(1 downto 0);         -- upper/lower data strobe
         oe              : in std_ulogic;                            -- CPU/chipset requests read
-        we              : in std_ulogic                             -- CPU/chipset requests write)
+        we              : in std_ulogic;                            -- CPU/chipset requests write)
+        lb              : in std_ulogic                             -- long (128 bit) read burst when active
     );
 end entity sdram;
 
