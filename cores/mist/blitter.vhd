@@ -417,7 +417,7 @@ begin
 
         -- source read takes place in state 0 (normal source read) and 3 (fxsr)
         bm_addr <= std_ulogic_vector(src_addr) when state = 0 or state = 3 else dst_addr;
-
+        skip_src_read <= '1' when (no_src_hop = '1' or no_src_op = '1') and not smudge = '1' else '0';
         ------------------ blitter busmaster engine -----------------------------
         p_bl_busmaster : process
         begin
@@ -605,11 +605,12 @@ begin
     p_blitter_op : process(all)
         variable iop        : integer;
     begin
-        -- return '1' for all ops that don't use in0 (src)
-        if op = 4d"0" or op = 4d"5" or op = 4d"10" or op = 4d"15" then no_src <= '1'; else no_src <= '0'; end if;
-        if op = 4d"0" or op = 4d"3" or op = 4d"12" or op = 4d"15" then no_dest <= '1'; else no_dest <= '0'; end if;
-
         iop := to_integer(unsigned(op));
+
+        -- return '1' for all ops that don't use in0 (src)
+        if iop = 0 or iop = 5 or iop = 10 or iop = 15 then no_src <= '1'; else no_src <= '0'; end if;
+        if iop = 0 or iop = 3 or iop = 12 or iop = 15 then no_dest <= '1'; else no_dest <= '0'; end if;
+
         case iop is
             when 0 => dout <= (others => '0');
             when 1 => dout <= in0 and in1;
