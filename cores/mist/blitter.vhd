@@ -569,9 +569,18 @@ end entity halftone_op;
 architecture rtl of halftone_op is
 begin
     p_halftone : process(all)
+        variable iop    : integer range 0 to 3;
     begin
+        iop := to_integer(unsigned(op));
         -- return 1 for all ops that don't use in1 (src)
-        if op = "00" or op = "01" then no_src <= '1'; else no_src <= '0'; end if; 
+        if iop = 0 or iop = 1 then no_src <= '1'; else no_src <= '0'; end if; 
+        
+        case iop is
+            when 0 => dout <= 16x"ffff";
+            when 1 => dout <= in0;
+            when 2 => dout <= in1;
+            when 3 => dout <= in0 and in1;
+        end case;        
     end process p_halftone;
 end architecture rtl;
 
