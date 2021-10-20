@@ -72,7 +72,7 @@ architecture rtl of blitter is
            endmask2,
            endmask3                 : std_ulogic_vector(15 downto 0);
     signal dst_x_inc,
-           dst_y_inc                : integer range 0 to 2 ** 16 - 1;
+           dst_y_inc                : integer range -32768 to 32767;
     signal dst_addr                 : std_ulogic_vector(23 downto 1);
     
     signal x_count,
@@ -221,7 +221,7 @@ begin
             elsif falling_edge(clk) then
                 if sel = '1' and not (rw = '0') then
                     -- 16/32 bit registers, not byte addressable
-                    if iaddr >= 0 and iaddr < 16#f# then halftone_ram(iaddr) <= din; end if;
+                    if iaddr >= 0 and iaddr <= 15 then halftone_ram(iaddr) <= din; end if;
                     
                     if iaddr = 16#10# then src_x_inc <= signed(din(15 downto 1)); end if;
                     if iaddr = 16#11# then src_y_inc <= signed(din(15 downto 1)); end if;
@@ -232,8 +232,8 @@ begin
                     if iaddr = 16#15# then endmask2 <= din; end if;
                     if iaddr = 16#16# then endmask3 <= din; end if;
                     
-                    if iaddr = 16#17# then dst_x_inc <= to_integer(unsigned(din(15 downto 1))); end if;
-                    if iaddr = 16#18# then dst_y_inc <= to_integer(unsigned(din(15 downto 1))); end if;
+                    if iaddr = 16#17# then dst_x_inc <= to_integer(signed(din(15 downto 1))); end if;
+                    if iaddr = 16#18# then dst_y_inc <= to_integer(signed(din(15 downto 1))); end if;
                     if iaddr = 16#19# then dst_addr(23 downto 16) <= din(7 downto 0); end if;
                     if iaddr = 16#1a# then dst_addr(15 downto 1) <= din(15 downto 1); end if;
                     
