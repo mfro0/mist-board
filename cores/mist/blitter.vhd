@@ -189,7 +189,8 @@ begin
                last_word_in_row,
                next_is_first_word_in_row,
                next_is_last_word_in_row : std_ulogic;
-        signal mask_requires_dest       : std_ulogic;
+        signal mask_requires_dest,
+               next_mask_requires_dest  : std_ulogic;
 
     begin
         p_latch : process
@@ -445,13 +446,26 @@ begin
         next_is_last_word_in_row <= '1' when x_count_next = 1 else '0';
 
         -- check if the current mask requires to read the destination first
-        mask_requires_dest <= '1' when next_is_first_word_in_row = '1' and endmask1 /= 16x"ffff" else
+        mask_requires_dest <= '1' when first_word_in_row = '1' and endmask1 /= 16x"ffff" else
+                              '0' when first_word_in_row = '1' and endmask1 = 16x"ffff" else
+                              '1' when last_word_in_row = '1' and endmask3 /= 16x"ffff" else
+                              '0' when last_word_in_row = '1' and endmask3 = 16x"ffff" else
+                              '1' when endmask2 /= 16x"ffff" else
+                              '0';
+        
+        -- check if the next words mask requires to read the destination first
+        next_mask_requires_dest <= '1' when next_is_first_word_in_row = '1' and endmask1 /= 16x"ffff" else
                               '0' when next_is_first_word_in_row = '1' and endmask1 = 16x"ffff" else
                               '1' when next_is_last_word_in_row = '1' and endmask3 /= 16x"ffff" else
                               '0' when next_is_last_word_in_row = '1' and endmask3 = 16x"ffff" else
                               '1' when endmask2 /= 16x"ffff" else
                               '0';
 
+        -- the requirement to read the destination first may either come from the
+        -- operation of from the fact that masking takes place
+        dest_required <= '1' when mask_requires_dest or not no_dest_op else '0';
+        next_dest_required <= '1' when next_mask_requires_dest or not no_dest_op else '0';
+        
         -- shift/select 16 bits of source
         i_shift : entity work.shift
             port map
