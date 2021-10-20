@@ -45,7 +45,7 @@ create_clock -name {clk_27} -period 37.037 -waveform { 0.000 18.500 } [get_ports
 #**************************************************************
 
 derive_pll_clocks
-create_generated_clock -name sdclk_pin -source [get_pins {clock|altpll_component|auto_generated|pll1|clk[2]}] [get_ports {SDRAM_CLK}]
+#create_generated_clock -name sdclk_pin -source [get_pins {clock|altpll_component|auto_generated|pll1|clk[2]}] [get_ports {SDRAM_CLK}]
 
 #**************************************************************
 # Set Clock Latency

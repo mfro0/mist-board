@@ -191,14 +191,6 @@ begin
                next_is_last_word_in_row : std_ulogic;
         signal mask_requires_dest       : std_ulogic;
         
-        function tern(cond : boolean; res_true, res_false : boolean) return boolean is
-        begin
-            if cond then 
-                return res_true;
-            else
-                return res_false;
-            end if;
-        end function;
     begin
         p_latch : process
         begin
@@ -453,9 +445,13 @@ begin
         next_is_last_word_in_row <= '1' when x_count_next = 1 else '0';
         
         -- check if the current mask requires to read the destination first
-        mask_requires_dest <= '1' when tern(next_is_first_word_in_row = '1', endmask1 /= 16x"ffff", 
-                                        tern(next_is_last_word_in_row = '1', endmask3 /= 16x"ffff", 
-                                            endmask2 /= x"ffff")) else '0';
+        mask_requires_dest <= '1' when next_is_first_word_in_row = '1' and endmask1 /= 16x"ffff" else
+                              '0' when next_is_first_word_in_row = '1' and endmask1 = 16x"ffff" else
+                              '1' when next_is_last_word_in_row = '1' and endmask3 /= 16x"ffff" else
+                              '0' when next_is_last_word_in_row = '1' and endmask3 = 16x"ffff" else
+                              '1' when endmask2 /= 16x"ffff" else
+                              '0';
+
         -- shift/select 16 bits of source
         i_shift : entity work.shift
             port map
@@ -569,9 +565,18 @@ end entity halftone_op;
 architecture rtl of halftone_op is
 begin
     p_halftone : process(all)
+        variable iop         : integer range 0 to 3;
     begin
+        iop := to_integer(unsigned(op));
         -- return 1 for all ops that don't use in1 (src)
-        if op = "00" or op = "01" then no_src <= '1'; else no_src <= '0'; end if; 
+        if iop = 0 or iop = 1 then no_src <= '1'; else no_src <= '0'; end if;
+        
+        case iop is
+            when 0 => dout <= 16x"ffff";
+            when 1 => dout <= in0;
+            when 2 => dout <= in1;
+            when 3 => dout <= in0 and in1;
+        end case;
     end process p_halftone;
 end architecture rtl;
 
