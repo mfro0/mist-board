@@ -136,7 +136,7 @@ set_global_assignment -name TPD_REQUIREMENT "2 ns"
 set_global_assignment -name TSU_REQUIREMENT "2 ns"
 set_global_assignment -name TCO_REQUIREMENT "2 ns"
 set_global_assignment -name ALLOW_POWER_UP_DONT_CARE OFF
-set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS OFF
+set_global_assignment -name SYNTH_TIMING_DRIVEN_SYNTHESIS ON
 set_global_assignment -name AUTO_RAM_TO_LCELL_CONVERSION OFF
 set_global_assignment -name AUTO_RAM_RECOGNITION ON
 set_global_assignment -name AUTO_ROM_RECOGNITION ON
