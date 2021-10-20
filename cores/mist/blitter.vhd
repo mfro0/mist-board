@@ -486,7 +486,8 @@ begin
                 in1         => dest,
                 
                 no_src      => no_src_op,
-                no_dest     => no_dest_op
+                no_dest     => no_dest_op,
+                dout        => result
             );
         
         -- apply masks
