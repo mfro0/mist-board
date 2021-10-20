@@ -338,6 +338,7 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to UART_RX
 set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS ON
 set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
 set_global_assignment -name VHDL_SHOW_LMF_MAPPING_MESSAGES OFF
+set_global_assignment -name VHDL_FILE blitter.vhd
 set_global_assignment -name VHDL_FILE viking.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rgb2ypbpr.sv
 set_global_assignment -name VERILOG_FILE sigma_delta_dac.v
@@ -355,7 +356,6 @@ set_global_assignment -name VERILOG_FILE mste_ctrl.v
 set_global_assignment -name VERILOG_FILE ethernec.v
 set_global_assignment -name VERILOG_FILE osd.v
 set_global_assignment -name VERILOG_FILE video_modes.v
-set_global_assignment -name VERILOG_FILE blitter.v
 set_global_assignment -name VERILOG_FILE mfp_timer.v
 set_global_assignment -name VHDL_FILE vol_table_array.vhd
 set_global_assignment -name VHDL_FILE YM2149_volmix.vhd
