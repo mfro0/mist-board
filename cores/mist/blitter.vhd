@@ -31,11 +31,11 @@ entity blitter is
     port
     (
         bus_cycle               : in std_ulogic_vector(1 downto 0);
-        
+
         -- CPU register interface
         clk                     : in std_ulogic;
         reset                   : in std_ulogic;
-        
+
         sel                     : in std_ulogic;
         addr                    : in std_ulogic_vector(4 downto 0);
         din                     : in std_ulogic_vector(15 downto 0);
@@ -43,14 +43,14 @@ entity blitter is
         uds,
         lds,
         rw                      : in std_ulogic;
-        
+
         -- bus master interface
         bm_addr                 : out std_ulogic_vector(23 downto 1);
         bm_write,
         bm_read                 : out std_ulogic;
         bm_data_out             : out std_ulogic_vector(15 downto 0);
         bm_data_in              : in std_ulogic_vector(15 downto 0);
-        
+
         br_in                   : in std_ulogic;
         br_out                  : out std_ulogic;
         irq                     : out std_ulogic;
@@ -62,19 +62,19 @@ end entity blitter;
 architecture rtl of blitter is
 
     type htr_t is array (15 downto 0) of std_ulogic_vector(15 downto 0);
-    
+
     -- CPU controlled register set
     signal halftone_ram             : htr_t;
     signal src_x_inc, src_y_inc     : signed(15 downto 1);
     signal src_addr                 : unsigned(23 downto 1);
-    
+
     signal endmask1,
            endmask2,
            endmask3                 : std_ulogic_vector(15 downto 0);
     signal dst_x_inc,
            dst_y_inc                : integer range -32768 to 32767;
     signal dst_addr                 : std_ulogic_vector(23 downto 1);
-    
+
     signal x_count,
            x_count_latch            : integer range 0 to 2 ** 16 - 1;
     signal y_count                  : integer range 0 to 2 ** 16 - 1;
@@ -85,16 +85,16 @@ architecture rtl of blitter is
     signal smudge,
            hog,
            busy                     : std_ulogic;
-    
+
     signal skew                     : std_ulogic_vector(3 downto 0);
     signal nfsr,
            fxsr                     : std_ulogic;
-    
+
     signal cycle_advance,
            cycle_read,
            cycle_advance_l,
            cycle_read_l             : std_ulogic;
-           
+
     -- wire up the blitter subcomponent combinatorics
     signal src_skewed,
            src_halftoned,
@@ -105,11 +105,11 @@ architecture rtl of blitter is
            no_dest_op               : std_ulogic;
 begin
     irq <= busy;
-    
+
     -- specify which bus cycles to use
     cycle_advance <= '1' when bus_cycle = "00" or (turbo = '1' and bus_cycle = "10") else '0';
     cycle_read <= '1' when bus_cycle = "01" or (turbo = '1' and bus_cycle = "11");
-    
+
     -- latch bus cycle information to use at the end of the cycle
     p_latch_bus_cycle : process
     begin
@@ -117,19 +117,19 @@ begin
         cycle_advance_l <= cycle_advance;
         cycle_read_l <= cycle_read;
     end process p_latch_bus_cycle;
-    
+
     -- --------------------------- CPU interface -----------------------------
-     
+
     -- CPU read
     p_cpu_read : process(all)
         variable iaddr      : integer;
     begin
         dout <= (others => '0');
         iaddr := to_integer(unsigned(addr));
-        
+
         if sel = '1' and rw = '1' then
             if iaddr >= 0 and iaddr <= 15 then dout <= halftone_ram(iaddr); end if;
-            
+
             if iaddr = 16#10# then dout <= std_ulogic_vector(src_x_inc) & '0'; end if;
             if iaddr = 16#11# then dout <= std_ulogic_vector(src_y_inc) & '0'; end if;
             if iaddr = 16#12# then dout <= 8x"00" & std_ulogic_vector(src_addr(23 downto 16)); end if;
@@ -137,60 +137,60 @@ begin
             if iaddr = 16#14# then dout <= endmask1; end if;
             if iaddr = 16#15# then dout <= endmask2; end if;
             if iaddr = 16#16# then dout <= endmask3; end if;
-            
+
             if iaddr = 16#17# then dout <= std_ulogic_vector(to_unsigned(dst_x_inc * 2, dout'length)); end if;
             if iaddr = 16#18# then dout <= std_ulogic_vector(to_unsigned(dst_y_inc * 2, dout'length)); end if;
             if iaddr = 16#19# then dout <= 8x"00" & dst_addr(23 downto 16); end if;
             if iaddr = 16#1a# then dout <= dst_addr(15 downto 1) & '0'; end if;
             if iaddr = 16#1b# then dout <= std_ulogic_vector(to_unsigned(x_count, 16)); end if;
             if iaddr = 16#1c# then dout <= std_ulogic_vector(to_unsigned(y_count, 16)); end if;
-            
+
             -- since reading them has no side effect we can return the 8 bit registers
             -- without caring for uds/lds
             if iaddr = 16#1d# then dout <=  6x"0" & hop & 4x"0" & op; end if;
-            if iaddr = 16#1e# then dout <= busy & hog & smudge & '0' & 
-                                           std_ulogic_vector(to_unsigned(line_number_latch, 4)) & 
+            if iaddr = 16#1e# then dout <= busy & hog & smudge & '0' &
+                                           std_ulogic_vector(to_unsigned(line_number_latch, 4)) &
                                            fxsr & nfsr & "00" & skew; end if;
         end if;
     end process p_cpu_read;
-    
+
     b_sm : block
         -- flag to initialise state machine
         signal init                 : std_ulogic;
-        
+
         -- wait 1 bus cycle after bus has been requested to avoid that counters are updated before
         -- first bus transfer has taken place
         signal wait4bus             : std_ulogic;
-        
+
         -- counter for cooperative (non-hog) bus access
         signal bus_coop_cnt         : integer range 0 to 2 ** 5 - 1;
         signal bus_owned            : std_ulogic;
-        
+
         -- the state machine runs through most states for every word it processes
         -- state 0: normal source read cycle
         -- state 1: destination read cycle
         -- state 2: destination write cycle
         -- state 3: extra source read cycle (fxsr)
         signal state                : integer range 0 to 3;
-        
+
         -- latch for read data
         signal bm_data_in_latch     : std_ulogic_vector(15 downto 0);
-        
+
         signal x_count_next         : integer range 0 to 2 ** 16 - 1;
-        
+
         signal skip_src_read,
                dest_required,
                next_dest_required   : std_ulogic;
-        
+
         signal src                  : std_ulogic_vector(31 downto 0);
         signal dest                 : std_ulogic_vector(15 downto 0);
-        
+
         signal first_word_in_row,
                last_word_in_row,
                next_is_first_word_in_row,
                next_is_last_word_in_row : std_ulogic;
         signal mask_requires_dest       : std_ulogic;
-        
+
     begin
         p_latch : process
         begin
@@ -199,12 +199,12 @@ begin
                 bm_data_in_latch <= bm_data_in;
             end if;
         end process p_latch;
-        
+
         p_cpu_write : process(all)
             variable iaddr              : integer range 0 to 2 ** 5 - 1;
         begin
             iaddr := to_integer(unsigned(addr));
-            
+
             -- blitter CPU register write interface -----------------------------
             if reset then
                 busy <= '0';
@@ -214,70 +214,70 @@ begin
                 if sel = '1' and not (rw = '0') then
                     -- 16/32 bit registers, not byte addressable
                     if iaddr >= 0 and iaddr <= 15 then halftone_ram(iaddr) <= din; end if;
-                    
+
                     if iaddr = 16#10# then src_x_inc <= signed(din(15 downto 1)); end if;
                     if iaddr = 16#11# then src_y_inc <= signed(din(15 downto 1)); end if;
                     if iaddr = 16#12# then src_addr(23 downto 16) <= unsigned(din(7 downto 0)); end if;
                     if iaddr = 16#13# then src_addr(15 downto 1) <= unsigned(din(15 downto 1)); end if;
-                    
+
                     if iaddr = 16#14# then endmask1 <= din; end if;
                     if iaddr = 16#15# then endmask2 <= din; end if;
                     if iaddr = 16#16# then endmask3 <= din; end if;
-                    
+
                     if iaddr = 16#17# then dst_x_inc <= to_integer(signed(din(15 downto 1))); end if;
                     if iaddr = 16#18# then dst_y_inc <= to_integer(signed(din(15 downto 1))); end if;
                     if iaddr = 16#19# then dst_addr(23 downto 16) <= din(7 downto 0); end if;
                     if iaddr = 16#1a# then dst_addr(15 downto 1) <= din(15 downto 1); end if;
-                    
+
                     if iaddr = 16#1b# then
                         x_count <= to_integer(unsigned(din));
                         x_count_latch <= to_integer(unsigned(din));   -- x_count is latched to be reloaded at each end of line
                     end if;
-                    
+
                     if iaddr = 16#1c# then y_count <= to_integer(unsigned(din)); end if;
-                    
+
                     -- ---------------- 8 bit registers -----------------------------------
                     -- uds -> even bytes via d(15 downto 8)
                     -- lds -> odd bytes via d(7 downto 0)
                     if iaddr = 16#1d# and not uds = '1' then hop <= din(9 downto 8); end if;
                     if iaddr = 16#1d# and not lds = '1' then op <= din(3 downto 0); end if;
-                    
+
                     if iaddr = 16#1e# and not uds = '1' then
                         line_number_latch <= to_integer(unsigned(din(11 downto 8)));
                         smudge <= din(13);
                         hog <= din(14);
-                        
+
                         -- writing busy with 1 starts the blitter, but only if y_count /= 0
                         if din(15) = '1' and y_count /= 0 then
                             busy <= '1';
                             wait4bus <= '1';
                             bus_coop_cnt <= 0;
-                            
+
                             -- initialise only if blitter is newly being started and not
                             -- if its already running
                             if not busy = '1' then init <= '1'; end if;
-                            
+
                             -- make sure the predicted x_count is one step ahead of the
                             -- real x_count
                             if x_count /= 1 then x_count_next <= x_count - 1; else
                                                  x_count_next <= x_count_latch; end if;
                         end if;
                     end if;
-                    
+
                     if iaddr = 16#1e# and not lds = '1' then
                         skew <= din(3 downto 0);
                         nfsr <= din(6);
                         fxsr <= din(7);
                     end if;
                 end if;
-        
+
                 -- ----------------------------------------------------------------------------------
                 -- -------------------------- blitter state machine ---------------------------------
                 -- ----------------------------------------------------------------------------------
 
                 -- entire state machine advances in bus_cycle 0
                 -- (the cycle before the one being used by the cpu/blitter for memory access)
-	        
+
                 -- grab bus if blitter is supposed to run (busy = '1') and we're not waiting for the bus
                 if busy = '1' and (not wait4bus = '1' or (wait4bus = '1' and (bus_coop_cnt = 0))) then
                     br_out <= '1';
@@ -289,15 +289,15 @@ begin
                 else
                     bus_owned <= '0';
                 end if;
-                
+
                 -- clear busy flag if blitter is done
                 if y_count = 0 then busy <= '0'; end if;
-                
+
                 -- the bus is freed/grabbed once this counter runs down to 0 in non-hog mode
                 if busy = '1' and not hog = '1' and not br_in = '1' and bus_coop_cnt /= 0 then
                     bus_coop_cnt <= bus_coop_cnt - 1;
                 end if;
-                
+
                 -- change between both states (bus grabbed and bus released)
                 if bus_coop_cnt = 0 then
                     -- release bus immediately, grab bus only if bg is set
@@ -305,12 +305,12 @@ begin
                         wait4bus <= not wait4bus;
                     end if;
                 end if;
-                
+
                 -- blitter has just been setup, so init the state machine in first step
                 if init then
                     init <= '0';
                     line_number <= line_number_latch;
-                    
+
                     if skip_src_read = '1' then         -- skip source read (state 0)
                         if dest_required = '1' then
                             state <= 1;                 -- but dest needs to be read
@@ -323,7 +323,7 @@ begin
                         state <= 0;                      -- normal source read
                     end if;
                 end if;
-                
+
                 -- advance state machine only if bus is owned
                 if bus_owned = '1' and not br_in = '1' and (y_count /= 0) then
                     -- first extra source read (fxsr)
@@ -336,7 +336,7 @@ begin
                         src_addr <= unsigned(signed(src_addr) + src_x_inc);
                         state <= 0;
                     end if;
-                    
+
                     if state = 0 then
                         -- don't do the last read of the last word in a row if nfsr is set
                         if nfsr = '1' and last_word_in_row = '1' then
@@ -353,14 +353,14 @@ begin
                             else
                                 src <= bm_data_in_latch & src(15 downto 0);
                             end if;
-                            
+
                             if x_count /= 1 then
                                 src_addr <= unsigned(signed(src_addr) + src_x_inc);
                             else
                                 src_addr <= unsigned(signed(src_addr) + src_y_inc);
                             end if;
                         end if;
-                            
+
                         -- jump directly to destination write if no destination read is required
                         if dest_required = '1' then
                             state <= 1;
@@ -368,12 +368,12 @@ begin
                             state <= 2;
                         end if;
                     end if;
-                    
+
                     if state = 1 then
                         dest <= bm_data_in_latch;
                         state <= 2;
                     end if;
-                    
+
                     if state = 2 then
                         -- y_count /= 0 means blitter is (still) active
                         if y_count /= 0 then
@@ -414,17 +414,17 @@ begin
                 end if;
             end if;
         end process p_cpu_write;
-        
+
         -- source read takes place in state 0 (normal source read) and 3 (fxsr)
         bm_addr <= std_ulogic_vector(src_addr) when state = 0 or state = 3 else dst_addr;
-        
+
         ------------------ blitter busmaster engine -----------------------------
         p_bl_busmaster : process
         begin
             wait until rising_edge(clk);
             bm_read <= '0';
             bm_write <= '0';
-            
+
             if bus_owned = '1' and not br_in = '1' and y_count /= 0 and cycle_advance_l = '1' then
                 if state = 0 then bm_read <= '1';
                 elsif state = 1 then bm_read <= '1';
@@ -433,17 +433,17 @@ begin
                 end if;
             end if;
         end process p_bl_busmaster;
-        
+
         halftone_line <= halftone_ram(to_integer(unsigned(src_skewed(3 downto 0)))) when smudge = '1' else halftone_ram(line_number);
-        
+
         -- check if current column is first or last word in the row
         first_word_in_row <= '1' when x_count = x_count_latch else '0';
         last_word_in_row <= '1' when x_count = 1 else '0';
-        
+
         -- check if next column is first or last word in the row
         next_is_first_word_in_row <= '1' when x_count_next = x_count_latch else '0';
         next_is_last_word_in_row <= '1' when x_count_next = 1 else '0';
-        
+
         -- check if the current mask requires to read the destination first
         mask_requires_dest <= '1' when next_is_first_word_in_row = '1' and endmask1 /= 16x"ffff" else
                               '0' when next_is_first_word_in_row = '1' and endmask1 = 16x"ffff" else
@@ -460,7 +460,7 @@ begin
                 din         => src,
                 dout        => src_skewed
             );
-            
+
         -- apply halftone operation
         i_halftone_op : entity work.halftone_op
             port map
@@ -468,11 +468,11 @@ begin
                 op          => hop,
                 in0         => halftone_line,
                 in1         => src_skewed,
-                
+
                 no_src      => no_src_hop,
                 dout        => src_halftoned
             );
-            
+
         -- apply blitter operation
         i_blitter_op : entity work.blitter_op
             port map
@@ -480,13 +480,14 @@ begin
                 op          => op,
                 in0         => src_halftoned,
                 in1         => dest,
-                
+
                 no_src      => no_src_op,
-                no_dest     => no_dest_op
+                no_dest     => no_dest_op,
+                dout        => result
             );
-        
+
         -- apply masks
-        
+
         i_masking : entity work.masking
             port map
             (
@@ -503,7 +504,7 @@ begin
 end architecture rtl;
 
 ------------------------------------------------------------------------------------
-        
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -565,12 +566,12 @@ end entity halftone_op;
 architecture rtl of halftone_op is
 begin
     p_halftone : process(all)
-        variable iop         : integer range 0 to 3;
+        variable iop    : integer range 0 to 3;
     begin
         iop := to_integer(unsigned(op));
         -- return 1 for all ops that don't use in1 (src)
         if iop = 0 or iop = 1 then no_src <= '1'; else no_src <= '0'; end if;
-        
+
         case iop is
             when 0 => dout <= 16x"ffff";
             when 1 => dout <= in0;
@@ -592,7 +593,7 @@ entity blitter_op is
         op          : in std_ulogic_vector(3 downto 0);
         in0         : in std_ulogic_vector(15 downto 0);
         in1         : in std_ulogic_vector(15 downto 0);
-        
+
         no_src      : out std_ulogic;
         no_dest     : out std_ulogic;
         dout        : out std_ulogic_vector(15 downto 0)
@@ -606,8 +607,8 @@ begin
     begin
         -- return '1' for all ops that don't use in0 (src)
         if op = 4d"0" or op = 4d"5" or op = 4d"10" or op = 4d"15" then no_src <= '1'; else no_src <= '0'; end if;
-        if op = 4d"0" or op = 4d"3" or op = 4d"12" or op = 4d"15" then no_dest <= '1'; else no_dest <= '0'; end if; 
-        
+        if op = 4d"0" or op = 4d"3" or op = 4d"12" or op = 4d"15" then no_dest <= '1'; else no_dest <= '0'; end if;
+
         iop := to_integer(unsigned(op));
         case iop is
             when 0 => dout <= (others => '0');
@@ -643,10 +644,10 @@ entity masking is
         endmask1,
         endmask2,
         endmask3        : in std_ulogic_vector(15 downto 0);
-        
+
         first,
         last            : in std_ulogic;
-        
+
         in0,
         in1             : in std_ulogic_vector(15 downto 0);
         dout            : out std_ulogic_vector(15 downto 0)
@@ -659,12 +660,12 @@ begin
     begin
         -- neither first nor last: endmask2
         dout <= (in0 and endmask2) or (in1 and not endmask2);
-        
+
         -- first (last may also be applied): endmask1
         if first = '1' then
             dout <= (in0 and endmask1) or (in1 and not endmask2);
         elsif last = '1' then
             dout <= (in0 and endmask3) or (in1 and not endmask3);
         end if;
-    end process p_mask;    
+    end process p_mask;
 end architecture rtl;
