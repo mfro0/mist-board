@@ -21,7 +21,7 @@ entity cache is
         din64           : in std_ulogic_vector(63 downto 0);
         store           : in std_ulogic;
         
-        -- interface to update existing cache lines o CPU RAM write
+        -- interface to update existing cache lines on CPU RAM write
         din16           : in std_ulogic_vector(15 downto 0);
         update          : in std_ulogic
     );
@@ -77,11 +77,10 @@ begin
     
     -- permanently output data according to current line
     -- de-multiplex 64 bit data into word requested by CPU
-    with addr(1 downto 0) select dout <=
-        dout_latch_0 when "00",
-        dout_latch_1 when "01",
-        dout_latch_2 when "10",
-        dout_latch_3 when "11";
+    with addr(1 downto 0) select dout <= dout_latch_0 when "00",
+                                         dout_latch_1 when "01",
+                                         dout_latch_2 when "10",
+                                         dout_latch_3 when "11";
     
     p_dout_latch : process
     begin
@@ -116,21 +115,20 @@ begin
                 -- no need to care for tag_latch or valid as they simply stay the same
                 case addr(1 downto 0) is
                     when "00" =>
-                        if ds(1) = '1' then data_latch_0(lin) <= din16(7 downto 0); end if;
+                        if ds(1) = '1' then data_latch_0(lin) <= din16( 7 downto 0); end if;
                         if ds(0) = '1' then data_latch_1(lin) <= din16(15 downto 8); end if;
                     when "01" =>
-                        if ds(1) = '1' then data_latch_2(lin) <= din16(7 downto 0); end if;
+                        if ds(1) = '1' then data_latch_2(lin) <= din16( 7 downto 0); end if;
                         if ds(0) = '1' then data_latch_3(lin) <= din16(15 downto 8);
                         end if;
                     when "10" =>
-                        if ds(1) = '1' then data_latch_4(lin) <= din16(7 downto 0); end if;
+                        if ds(1) = '1' then data_latch_4(lin) <= din16( 7 downto 0); end if;
                         if ds(0) = '1' then data_latch_5(lin) <= din16(15 downto 8); end if;
                     when "11" =>
-                        if ds(1) = '1' then data_latch_6(lin) <= din16(7 downto 0); end if;
+                        if ds(1) = '1' then data_latch_6(lin) <= din16( 7 downto 0); end if;
                         if ds(0) = '1' then data_latch_7(lin) <= din16(15 downto 8); end if;
                 end case;
             end if;
         end if;
     end process p_cache;
-    
 end architecture rtl;
