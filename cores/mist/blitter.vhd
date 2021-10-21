@@ -286,12 +286,8 @@ begin
                     else
                         br_out <= '0';
                     end if;
-                    if busy = '1' and not wait4bus = '1' then
-                        bus_owned <= '1';
-                    else
-                        bus_owned <= '0';
-                    end if;
-    
+                    bus_owned <= busy and wait4bus;
+                    
                     -- clear busy flag if blitter is done
                     if y_count = 0 then busy <= '0'; end if;
     
@@ -304,6 +300,7 @@ begin
                     if bus_coop_cnt = 0 then
                         -- release bus immediately, grab bus only if bg is set
                         if not wait4bus = '1' or (wait4bus = '1' and bg = '1') then
+                            bus_coop_cnt <= 63;
                             wait4bus <= not wait4bus;
                         end if;
                     end if;
