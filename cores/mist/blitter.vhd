@@ -279,138 +279,139 @@ begin
 
                 -- entire state machine advances in bus_cycle 0
                 -- (the cycle before the one being used by the cpu/blitter for memory access)
-
-                -- grab bus if blitter is supposed to run (busy = '1') and we're not waiting for the bus
-                if busy = '1' and (not wait4bus = '1' or (wait4bus = '1' and (bus_coop_cnt = 0))) then
-                    br_out <= '1';
-                else
-                    br_out <= '0';
-                end if;
-                if busy = '1' and not wait4bus = '1' then
-                    bus_owned <= '1';
-                else
-                    bus_owned <= '0';
-                end if;
-
-                -- clear busy flag if blitter is done
-                if y_count = 0 then busy <= '0'; end if;
-
-                -- the bus is freed/grabbed once this counter runs down to 0 in non-hog mode
-                if busy = '1' and not hog = '1' and not br_in = '1' and bus_coop_cnt /= 0 then
-                    bus_coop_cnt <= bus_coop_cnt - 1;
-                end if;
-
-                -- change between both states (bus grabbed and bus released)
-                if bus_coop_cnt = 0 then
-                    -- release bus immediately, grab bus only if bg is set
-                    if not wait4bus = '1' or (wait4bus = '1' and bg = '1') then
-                        wait4bus <= not wait4bus;
-                    end if;
-                end if;
-
-                -- blitter has just been setup, so init the state machine in first step
-                if init then
-                    init <= '0';
-                    line_number <= line_number_latch;
-
-                    if skip_src_read = '1' then         -- skip source read (state 0)
-                        if dest_required = '1' then
-                            state <= 1;                 -- but dest needs to be read
-                        else
-                            state <= 2;                 -- also dest needs to be read
-                        end if;
-                    elsif fxsr = '1' then               -- first extra source read
-                        state <= 3;
+                if cycle_advance then
+                    -- grab bus if blitter is supposed to run (busy = '1') and we're not waiting for the bus
+                    if busy = '1' and (not wait4bus = '1' or (wait4bus = '1' and (bus_coop_cnt = 0))) then
+                        br_out <= '1';
                     else
-                        state <= 0;                      -- normal source read
+                        br_out <= '0';
                     end if;
-                end if;
-
-                -- advance state machine only if bus is owned
-                if bus_owned = '1' and not br_in = '1' and (y_count /= 0) then
-                    -- first extra source read (fxsr)
-                    if state = 2 then
-                        if src_x_inc < 0 then
-                            src <= src(15 downto 0) & bm_data_in_latch;
-                        else
-                            src <= bm_data_in_latch & src(15 downto 0);
+                    if busy = '1' and not wait4bus = '1' then
+                        bus_owned <= '1';
+                    else
+                        bus_owned <= '0';
+                    end if;
+    
+                    -- clear busy flag if blitter is done
+                    if y_count = 0 then busy <= '0'; end if;
+    
+                    -- the bus is freed/grabbed once this counter runs down to 0 in non-hog mode
+                    if busy = '1' and not hog = '1' and not br_in = '1' and bus_coop_cnt /= 0 then
+                        bus_coop_cnt <= bus_coop_cnt - 1;
+                    end if;
+    
+                    -- change between both states (bus grabbed and bus released)
+                    if bus_coop_cnt = 0 then
+                        -- release bus immediately, grab bus only if bg is set
+                        if not wait4bus = '1' or (wait4bus = '1' and bg = '1') then
+                            wait4bus <= not wait4bus;
                         end if;
-                        src_addr <= unsigned(signed(src_addr) + src_x_inc);
-                        state <= 0;
                     end if;
-
-                    if state = 0 then
-                        -- don't do the last read of the last word in a row if nfsr is set
-                        if nfsr = '1' and last_word_in_row = '1' then
-                            -- no final source read, but shifting anyway
-                            if src_x_inc > 0 then
-                                src(31 downto 16) <= src(15 downto 0);
+    
+                    -- blitter has just been setup, so init the state machine in first step
+                    if init then
+                        init <= '0';
+                        line_number <= line_number_latch;
+    
+                        if skip_src_read = '1' then         -- skip source read (state 0)
+                            if dest_required = '1' then
+                                state <= 1;                 -- but dest needs to be read
                             else
-                                src(15 downto 0) <= src(31 downto 16);
+                                state <= 2;                 -- also dest needs to be read
                             end if;
-                            src_addr <= unsigned(signed(src_addr) + src_y_inc);
+                        elsif fxsr = '1' then               -- first extra source read
+                            state <= 3;
                         else
-                            if src_x_inc > 0 then
+                            state <= 0;                      -- normal source read
+                        end if;
+                    end if;
+    
+                    -- advance state machine only if bus is owned
+                    if bus_owned = '1' and not br_in = '1' and (y_count /= 0) then
+                        -- first extra source read (fxsr)
+                        if state = 2 then
+                            if src_x_inc < 0 then
                                 src <= src(15 downto 0) & bm_data_in_latch;
                             else
                                 src <= bm_data_in_latch & src(15 downto 0);
                             end if;
-
-                            if x_count /= 1 then
-                                src_addr <= unsigned(signed(src_addr) + src_x_inc);
-                            else
-                                src_addr <= unsigned(signed(src_addr) + src_y_inc);
-                            end if;
+                            src_addr <= unsigned(signed(src_addr) + src_x_inc);
+                            state <= 0;
                         end if;
-
-                        -- jump directly to destination write if no destination read is required
-                        if dest_required = '1' then
-                            state <= 1;
-                        else
-                            state <= 2;
-                        end if;
-                    end if;
-
-                    if state = 1 then
-                        dest <= bm_data_in_latch;
-                        state <= 2;
-                    end if;
-
-                    if state = 2 then
-                        -- y_count /= 0 means blitter is (still) active
-                        if y_count /= 0 then
-                            if x_count /= 1 then
-                                -- we are at the beginning or within a line (have not reached the end yet)
-                                dst_addr <= std_ulogic_vector(signed(dst_addr) + to_signed(dst_x_inc, dst_addr'length));
-                                x_count <= x_count - 1;
-                            else
-                                -- we are at the end of a line but not finished yet
-                                dst_addr <= std_ulogic_vector(signed(dst_addr) + to_signed(dst_y_inc, dst_addr'length));
-                                if dst_y_inc >= 0 then
-                                    line_number <= line_number + 1;
+    
+                        if state = 0 then
+                            -- don't do the last read of the last word in a row if nfsr is set
+                            if nfsr = '1' and last_word_in_row = '1' then
+                                -- no final source read, but shifting anyway
+                                if src_x_inc > 0 then
+                                    src(31 downto 16) <= src(15 downto 0);
                                 else
-                                    line_number <= line_number - 1;
+                                    src(15 downto 0) <= src(31 downto 16);
                                 end if;
-                                x_count <= x_count_latch;
-                                y_count <= y_count - 1;
-                            end if;
-                            -- also advance the predicted next x_count
-                            if x_count_next /= 1 then
-                                x_count_next <= x_count_next - 1;
+                                src_addr <= unsigned(signed(src_addr) + src_y_inc);
                             else
-                                x_count_next <= x_count_latch;
+                                if src_x_inc > 0 then
+                                    src <= src(15 downto 0) & bm_data_in_latch;
+                                else
+                                    src <= bm_data_in_latch & src(15 downto 0);
+                                end if;
+    
+                                if x_count /= 1 then
+                                    src_addr <= unsigned(signed(src_addr) + src_x_inc);
+                                else
+                                    src_addr <= unsigned(signed(src_addr) + src_y_inc);
+                                end if;
                             end if;
-                        end if;
-                        if skip_src_read = '1' then
-                            if next_dest_required then
+    
+                            -- jump directly to destination write if no destination read is required
+                            if dest_required = '1' then
                                 state <= 1;
                             else
                                 state <= 2;
                             end if;
-                        elsif last_word_in_row = '1' and fxsr = '1' then
-                            state <= 3;
-                        else
-                            state <= 0;
+                        end if;
+    
+                        if state = 1 then
+                            dest <= bm_data_in_latch;
+                            state <= 2;
+                        end if;
+    
+                        if state = 2 then
+                            -- y_count /= 0 means blitter is (still) active
+                            if y_count /= 0 then
+                                if x_count /= 1 then
+                                    -- we are at the beginning or within a line (have not reached the end yet)
+                                    dst_addr <= std_ulogic_vector(signed(dst_addr) + to_signed(dst_x_inc, dst_addr'length));
+                                    x_count <= x_count - 1;
+                                else
+                                    -- we are at the end of a line but not finished yet
+                                    dst_addr <= std_ulogic_vector(signed(dst_addr) + to_signed(dst_y_inc, dst_addr'length));
+                                    if dst_y_inc >= 0 then
+                                        line_number <= line_number + 1;
+                                    else
+                                        line_number <= line_number - 1;
+                                    end if;
+                                    x_count <= x_count_latch;
+                                    y_count <= y_count - 1;
+                                end if;
+                                -- also advance the predicted next x_count
+                                if x_count_next /= 1 then
+                                    x_count_next <= x_count_next - 1;
+                                else
+                                    x_count_next <= x_count_latch;
+                                end if;
+                            end if;
+                            if skip_src_read = '1' then
+                                if next_dest_required then
+                                    state <= 1;
+                                else
+                                    state <= 2;
+                                end if;
+                            elsif last_word_in_row = '1' and fxsr = '1' then
+                                state <= 3;
+                            else
+                                state <= 0;
+                            end if;
                         end if;
                     end if;
                 end if;
