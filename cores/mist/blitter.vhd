@@ -61,10 +61,10 @@ end entity blitter;
 
 architecture rtl of blitter is
 
-    type htr_t is array (15 downto 0) of std_ulogic_vector(15 downto 0);
+    type halftone_ram_t is array (15 downto 0) of std_ulogic_vector(15 downto 0);
 
     -- CPU controlled register set
-    signal halftone_ram             : htr_t;
+    signal halftone_ram             : halftone_ram_t;
     signal src_x_inc, src_y_inc     : signed(15 downto 1);
     signal src_addr                 : unsigned(23 downto 1);
 
@@ -122,7 +122,7 @@ begin
 
     -- CPU read
     p_cpu_read : process(all)
-        variable iaddr      : integer;
+        variable iaddr      : integer range 0 to 2 ** 5 - 1;
     begin
         dout <= (others => '0');
         iaddr := to_integer(unsigned(addr));
@@ -201,9 +201,10 @@ begin
             end if;
         end process p_latch;
 
-        p_cpu_write : process(all)
+        p_cpu_write : process
             variable iaddr              : integer range 0 to 2 ** 5 - 1;
         begin
+            wait until falling_edge(clk);
             iaddr := to_integer(unsigned(addr));
 
             -- blitter CPU register write interface -----------------------------
@@ -211,7 +212,7 @@ begin
                 busy <= '0';
                 state <= 0;
                 wait4bus <= '0';
-            elsif falling_edge(clk) then
+            else
                 if sel = '1' and not (rw = '0') then
                     -- 16/32 bit registers, not byte addressable
                     if iaddr >= 0 and iaddr <= 15 then halftone_ram(iaddr) <= din; end if;
