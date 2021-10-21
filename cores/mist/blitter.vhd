@@ -163,7 +163,7 @@ begin
         signal wait4bus             : std_ulogic;
 
         -- counter for cooperative (non-hog) bus access
-        signal bus_coop_cnt         : integer range 0 to 2 ** 5 - 1;
+        signal bus_coop_cnt         : integer range 0 to 2 ** 6 - 1;
         signal bus_owned            : std_ulogic;
 
         -- the state machine runs through most states for every word it processes
