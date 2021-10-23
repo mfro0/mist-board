@@ -30,7 +30,7 @@ use ieee.numeric_std.all;
 entity blitter is
     port
     (
-        bus_cycle               : in std_ulogic_vector(1 downto 0);
+        bus_cycle               : in integer range 0 to 3;
 
         -- CPU register interface
         clk                     : in std_ulogic;
@@ -107,8 +107,8 @@ begin
     irq <= busy;
 
     -- specify which bus cycles to use
-    cycle_advance <= '1' when bus_cycle = "00" or (turbo = '1' and bus_cycle = "10") else '0';
-    cycle_read <= '1' when bus_cycle = "01" or (turbo = '1' and bus_cycle = "11");
+    cycle_advance <= '1' when bus_cycle = 0 or (turbo = '1' and bus_cycle = 2) else '0';
+    cycle_read <= '1' when bus_cycle = 1 or (turbo = '1' and bus_cycle = 3);
 
     -- latch bus cycle information to use at the end of the cycle
     p_latch_bus_cycle : process
