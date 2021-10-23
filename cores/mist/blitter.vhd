@@ -107,8 +107,8 @@ begin
     irq <= busy;
 
     -- specify which bus cycles to use
-    cycle_advance <= '1' when bus_cycle = 0 or (turbo = '1' and bus_cycle = 2) else '0';
-    cycle_read <= '1' when bus_cycle = 1 or (turbo = '1' and bus_cycle = 3);
+    cycle_advance <= '1' when bus_cycle = 0 or ((?? turbo) and bus_cycle = 2) else '0';
+    cycle_read <= '1' when bus_cycle = 1 or ((?? turbo) and bus_cycle = 3);
 
     -- latch bus cycle information to use at the end of the cycle
     p_latch_bus_cycle : process
